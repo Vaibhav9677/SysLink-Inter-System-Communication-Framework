@@ -86,7 +86,7 @@ int main(int argc, char * argv[])
 		perror("mouth : ");
 		exit(EXIT_FAILURE);
 	}
-	printf("data length : %d\n",actualdatalen);
+//	printf("data length : %d\n",actualdatalen);
 
 	if((((checkLockflag(fd)) == 1) && ((is_nextReqArrived(fd,actualdatalen)) == 0)) ||
 		(((checkLockflag(fd)) == 0) && ((is_nextReqArrived(fd,actualdatalen)) == 0)))
@@ -100,14 +100,14 @@ int main(int argc, char * argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	printf("message form the mouth which to be sent : des : %hd | src : %hd | type : %d | data len : %d | data : %s\n",Read_16(buffer,0),Read_16(buffer,2),buffer[4],Read_32(buffer,5),&buffer[9]);
-	printf("requenst size : %d\n",n);
+//	printf("message form the mouth which to be sent : des : %hd | src : %hd | type : %d | data len : %d | data : %s\n",Read_16(buffer,0),Read_16(buffer,2),buffer[4],Read_32(buffer,5),&buffer[9]);
+//	printf("requenst size : %d\n",n);
   	memset(&receiverAddr, 0, sizeof(receiverAddr));
   	receiverAddr.sin_family = AF_INET;
   	receiverAddr.sin_port = htons(Read_16(buffer,0));
   	receiverAddr.sin_addr.s_addr = INADDR_ANY;
   	sendto(sockfd,buffer, actualdatalen, 0, (const struct sockaddr *) &receiverAddr, sizeof(receiverAddr));
-	printf("Data sent.....\n");
+//	printf("Data sent.....\n");
 	
   }  
 

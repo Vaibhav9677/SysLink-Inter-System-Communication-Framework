@@ -455,13 +455,49 @@ int send_message(SYS _system,char * buffer, us_int id)
 		return -1;
 	}
 
-	printf("message to send mouth : des : %hd\n src : %hd\n type : %d\n data length: %d\n data: %s\n ",
-		Read_16(msg,0), Read_16(msg,2),msg[4],Read_32(msg,5),&msg[9]);
+//	printf("message to send mouth : des : %hd\n src : %hd\n type : %d\n data length: %d\n data: %s\n ",
+//		Read_16(msg,0), Read_16(msg,2),msg[4],Read_32(msg,5),&msg[9]);
 		
 	//write into the mouth file
 	
 	return writeIntomouthfile(_system.host.mouth_Info.fd,msg,mesg_size);
 	//get port number destination
+}
+
+int killAllChild(struct host_Info host)
+{
+	int i = 0;
+	int ret = 0;
+	while(i < host.ear_Info.count)
+	{
+		ret = kill(host.ear_Info.ears[i].p_id,SIGKILL);
+		if(ret == -1)
+		{
+			printf("error while killing");
+			return -1;
+		}
+		ret = close(host.ear_Info.ears[i].fd);
+		i++;
+	}
+
+	i = 0;
+
+	ret = kill(host.mouth_Info.p_id,SIGKILL);
+	ret = close(host.mouth_Info.fd);
+
+		if(ret == -1)
+		{
+			printf("error while killing");
+			return -1;
+		}
+	ret = kill(host.ui_info.p_id,SIGKILL);
+		if(ret == -1)
+		{
+			printf("error while killing");
+			return -1;
+		}
+	ret = close(host.ui_info.fd);
+	return ret;
 }
 int handleUIreq(SYS _system)
 {
@@ -480,7 +516,7 @@ int handleUIreq(SYS _system)
 	{
 		return re;
 	}
-	printf("Message arived\n");
+//	printf("Message arived\n");
 
 	if((pread(fd,buffer,1024,1)) < 0)
 	{
@@ -509,15 +545,27 @@ int handleUIreq(SYS _system)
 			return re;
 		}
 
-		re = writeIntoUI(fd,"Message sent");
+//		re = writeIntoUI(fd,"Message sent");
 		return re;
 	}
 	else if(type == 2)
 	{
-		printf("message for the shutdown\n");
+//		printf("message for the shutdown\n");
 		re = writeIntoUI(fd,"shutdown.....");
+		re = killAllChild(_system.host);
+		
+		int i = 0;
+
+		while(i < _system.host.ear_Info.count)
+		{
+			waitpid(_system.host.ear_Info.ears[i].p_id,NULL,0);
+			i++;
+		}
+
+		waitpid(_system.host.mouth_Info.p_id,NULL,0);
+		waitpid(_system.host.ui_info.p_id,NULL,0);
 		//re = shutdown(_system);
-		return re;
+		return -2;
 	}
 
 	return 0;
@@ -554,17 +602,35 @@ short int getReq(int fd,char * buff,us_int cap)
 	{
 		perror("ear ");
 	}
-	printf("inside get req message from the ear : des : %hd | src : %hd | type : %d | data length: %d | data: %s\n ",
-	Read_16(buff,0), Read_16(buff,2),buff[4],Read_32(buff,5),&buff[9]);
+//	printf("inside get req message from the ear : des : %hd | src : %hd | type : %d | data length: %d | data: %s\n ",
+//	Read_16(buff,0), Read_16(buff,2),buff[4],Read_32(buff,5),&buff[9]);
 	return n;
 }
 
+void  reverse_string(char * buff, int len)
+{
+	int i = 0;
+	int j = len -1;
+	char temp = 0;
+
+	while(i < j)
+	{
+		temp = buff[i];
+		buff[i] = buff[j];
+		buff[j] = temp;
+
+		i++;
+		j--;
+	}
+
+}
 int handleEarreq(SYS _system)
 {
 	us_int cap = _system.host.ear_Info.ears[0].port.capcity;
 	int fd = _system.host.ear_Info.ears[0].fd;
 	us_int uifd = _system.host.ui_info.fd;
 	short int ret = 0;
+	char * msg = NULL;
 	
 	char buff[cap];
 
@@ -574,13 +640,24 @@ int handleEarreq(SYS _system)
 		return ret;
 	}
 	
-	printf("cap of ear : %d\n",cap);
-	printf("message from the ear after : des : %hd | src : %hd | type : %d | data length: %d | data: %s\n ",
-	Read_16(buff,0), Read_16(buff,2),buff[4],Read_32(buff,5),&buff[9]);
-	
-	if((writeIntoUI(uifd,&buff[9])) < 0)
+//	printf("cap of ear : %d\n",cap);
+//	printf("message from the ear after : des : %hd | src : %hd | type : %d | data length: %d | data: %s\n ",
+//	Read_16(buff,0), Read_16(buff,2),buff[4],Read_32(buff,5),&buff[9]);
+
+	if(buff[4] == 1)
 	{
-		return -1;
+		reverse_string(&buff[9],Read_32(buff,5));
+		msg = create_message(cap,Read_16(buff,2),Read_16(buff,0),2,Read_32(buff,5),&buff[9]);
+		ret = writeIntomouthfile(_system.host.mouth_Info.fd,msg,cap);
+
 	}
+	else if(buff[4] == 2)
+	{
+		if((writeIntoUI(uifd,&buff[9])) < 0)
+		{
+			return -1;
+		}
+	}
+
 	return ret;
 }

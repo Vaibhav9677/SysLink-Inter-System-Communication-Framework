@@ -4,7 +4,8 @@
 #include<stdlib.h>
 #include<string.h>
 #include<fcntl.h>
-
+#include<signal.h>
+#include<sys/wait.h>
 #include"sys_structs.h"
 #include"sys_func.h"
 #define data_len 1024
@@ -76,7 +77,10 @@ int main(int argc, char * argv[])
 		{
 			printf("brain : error while handling ui request\n");
 		}
-
+		else if(re == -2)
+		{
+			break;
+		}
 		re = 0;
 
 		re = handleEarreq(_system);

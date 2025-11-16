@@ -81,8 +81,8 @@ int main(int argc, char * argv[])
 		{
 			continue;
 		}
-		printf("data reciveed\n");
-		printf("message form socket into the ear :  des : %hd | src : %hd | type : %d | datalen : %d| data : %s\n",Read_16(buff,0),Read_16(buff,2),buff[4],Read_32(buff,5),&buff[9]);
+//		printf("data reciveed\n");
+//		printf("message form socket into the ear :  des : %hd | src : %hd | type : %d | datalen : %d| data : %s\n",Read_16(buff,0),Read_16(buff,2),buff[4],Read_32(buff,5),&buff[9]);
 	}
 		
 	close(fd);

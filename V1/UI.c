@@ -71,7 +71,7 @@ void shut_down(unsigned short int op,int fd)
 {
 	char buffer[data_len];
 	Read_16(buffer,0) = op;  		//type	
-	printf("Inside shut down : %d\n",Read_16(buffer,0));
+//	printf("Inside shut down : %d\n",Read_16(buffer,0));
 	if(write_ubfile(buffer,fd) == -1)
 	{
 		exit(EXIT_FAILURE);
@@ -86,7 +86,7 @@ void shut_down(unsigned short int op,int fd)
 		return;
 	}
 
-	printf("Output : %s\n",buffer);
+//	printf("Output : %s\n",buffer);
 }
 
 void send_message(unsigned short int op,int fd)
@@ -112,7 +112,7 @@ void send_message(unsigned short int op,int fd)
 		printf("ERROR : while fatching resopnce\n");
 		return;
 	}
-	printf("Output : %s\n",buffer);
+//	printf("Output : %s\n",buffer);
 }
 
 int main(int argc, char * argv[])
@@ -132,26 +132,23 @@ int main(int argc, char * argv[])
 		printf("--------------------------Application Menu------------------------\n");
 		printf("1 : Send the message \n");
 		printf("2 : Shut down the system \n");
-		printf("3 : check Arrived message\n");		
 		printf("Enter the opration : \n");
 		scanf("%hd",&op);
 
 		if(op == 1)
 		{
 			send_message(op,fd);			
-		}
-		else if(op == 2)
-		{
-			shut_down(op,fd);
-		}
-		else if(op == 3)
-		{
+			
 			if((fetch_response(buffer,fd)) < 0)
 			{
 				printf("error");
 				continue;
 			}
-			printf("message : %s\n",buffer);
+			printf("Reply message : %s\n",buffer);
+		}
+		else if(op == 2)
+		{
+			shut_down(op,fd);
 		}
 		else
 		{
