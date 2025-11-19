@@ -6,8 +6,11 @@
 #include<fcntl.h>
 #include<signal.h>
 #include<sys/wait.h>
+#include <sys/stat.h>
+#include <math.h>
 #include"sys_structs.h"
 #include"sys_func.h"
+
 #define data_len 1024
 
 //SYS _system;

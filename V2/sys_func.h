@@ -518,6 +518,63 @@ int checkfilexsits(char * file_name)
 	return open(file_name,O_RDONLY);
 }
 
+void printMCB(struct MCB * mcb)
+{
+	//print general infomation 
+
+	printLine;
+	printf("General Information : \n");
+	printLine;
+	printf("Connection Id : %d\n",mcb->connection_id);
+	printf("Source port : %ld	| Destination port : %ld\n",mcb->src_port,mcb->dest_port);
+	printf("Connection type : ");
+	(mcb->con_type == SENDER )? printf("SENDER\n") : printf("RECIVER");
+
+	printf("connection state : ");
+
+	switch(mcb->state){
+		case NEW :
+			printf("NEW\n");
+		default :
+			printf("Undefined\n");
+	}
+
+	printf("Alram : %d\n",mcb->alarm);
+	printf("Ack : %s\n");
+
+	printLine;
+	printf("Handshake information : \n");
+	printf("is connect : ");
+	(mcb->handshake->is_connect == CONNECT) ? printf("CONNECT\n") : printf("DISCONNECT\n");
+	printf("No of try to connect : %d\n",mcb->handshake->count_of_try);
+	printLine;
+
+	printf("Meta Data of the message : \n");
+	printf("File name : %s\n",mcb->metadata->file_name);
+	printf("Total size of file : %ld\n",mcb->metadata->total_size);
+	printf("size of one packet : %d\n",mcb->metadata->size_of_packet);
+	printf("Total number of packets : %d\n",mcb->metadata->total_no_packet);
+	printf("Count of sub info in one packet : %d\n",mcb->metadata->count_of_sub_pack);
+
+	printLine;
+
+	printf("Info track of packets : ");
+	printf("Total number of packet sent and recived : %d\n",mcb->infopack->count_AckPack);
+	printf("count of cuurent senf packet : %d\n",mcb->infopack->curr_count);
+	printf("packets are :\n");
+	printLine;
+	int i = 0;
+	while(i < mcb->metadata->count_of_sub_pack)
+	{
+		printf("|%d		|%d		|\n",i+1,mcb->infopack->sub_Info_pack[i]);
+		printLine;
+		i++;
+	}
+
+	printf("bit vector : %s\n",mcb->infopack->ackBitv);
+
+	printLine;
+}
 struct MCB * create_new_node()
 {
 	struct MCB * newn = (struct MCB *)malloc(sizeof(struct MCB));
@@ -527,23 +584,23 @@ struct MCB * create_new_node()
 		return newn;
 	}
 
-	if((_system.MCB_control.head == NULL) && (_system.MCB_control.tail == NULL))
+	if((_system.MCB_C.head == NULL) && (_system.MCB_C.tail == NULL))
 	{
 		newn->next = newn;
 		newn->prev = newn;
-		_system.MCB_control.head = newn;
-		_system.MCB_control.tail = newn;
+		_system.MCB_C.head = newn;
+		_system.MCB_C.tail = newn;
 	}
 	else
 	{
-		_system.MCB_control.tail->next = newn;
-		newn->next = _system.MCB_control.head;
-		newn->prev = _system.MCB_control.tail;
-		_system.MCB_control.head->prev = newn;
-		_system.MCB_control.tail = newn;		
+		_system.MCB_C.tail->next = newn;
+		newn->next = _system.MCB_C.head;
+		newn->prev = _system.MCB_C.tail;
+		_system.MCB_C.head->prev = newn;
+		_system.MCB_C.tail = newn;		
 	}
 
-	_system.MCB_control.count += 1;
+	_system.MCB_C.count += 1;
 
 	return newn;
 }
@@ -575,9 +632,24 @@ struct MCB * create_new_MCB()
 	return newnode;
 }
 
+int getfilesizeByfd(int fd)
+{
+	struct stat sb;
+	int re = 0;
+
+	re = fstat(fd,&sb);
+
+	if(re == -1)
+	{
+		return re;
+	}
+	//printf("#########size of file : %d\n",sb.st_size);
+	return sb.st_size;
+}
+
 struct HandShake * create_new_handshake()
 {
-	struct HandShake newh = (struct HandShake *)malloc(sizeof(struct HandShake));
+	struct HandShake * newh = (struct HandShake *)malloc(sizeof(struct HandShake));
 
 	if(newh == NULL)
 	{
@@ -590,7 +662,48 @@ struct HandShake * create_new_handshake()
 	return newh;
 }
 
-int assign_value_MCB(struct MCB * node, char * file_name,int fd, int id, char type)
+struct MetaData * create_new_metadata(char * file_name, int fd,int id)
+{
+	struct MetaData * newm = (struct MetaData *)malloc(sizeof(struct MetaData));
+
+	if(newm == NULL)
+	{
+		return NULL;
+	}
+
+	strcpy(newm->file_name,file_name);
+	newm->total_size = getfilesizeByfd(fd);
+	newm->size_of_packet = min(_system.host.mouth_Info.capcity,_system.peer.peers[id].ports[0].capcity) - pack_Header_size;
+	newm->total_no_packet = div(newm->total_size,newm->size_of_packet);
+	newm->count_of_sub_pack = (newm->size_of_packet/sizeof(int));
+
+	if(newm->total_no_packet < newm->count_of_sub_pack)
+	{
+		newm->count_of_sub_pack = newm->total_no_packet;
+	}
+
+	return newm;
+}
+
+struct InfoPack * create_new_Infopack(int No_sub_pack)
+{
+	struct InfoPack * newi = (struct InfoPack *)malloc(sizeof(struct InfoPack));
+
+	if(newi == NULL)
+	{
+		return NULL;
+	}
+
+	newi->count_AckPack = 0;
+	newi->curr_count= 0;
+	newi->sub_Info_pack = (int *)malloc(sizeof(int) * No_sub_pack);
+	newi->bitVectsize = (unsigned char)(div(No_sub_pack,8));
+	newi->ackBitv = (unsigned char *)malloc(newi->bitVectsize);
+
+	return newi;
+}
+
+int assign_value_MCB(struct MCB * newnode, char * file_name,int fd, int id, char type)
 {
 	newnode->connection_id = generate_id(_system.host.ear_Info.ears[0].port.port_no,_system.peer.peers[id].ports[0].port_no);
 	newnode->con_type = type;
@@ -605,8 +718,21 @@ int assign_value_MCB(struct MCB * node, char * file_name,int fd, int id, char ty
 	}
 
 	//now create the metadata all message
-	newnode->metadata = create_new_metadata()
+	newnode->metadata = create_new_metadata(file_name,fd,id);
+	if(newnode->metadata == NULL)
+	{
+		return -1;
+	}
 
+	//now create subinfo packet which is use to track the packets
+	newnode->infopack = create_new_Infopack(newnode->metadata->count_of_sub_pack);
+	if(newnode->infopack == NULL)
+	{
+		return -1;
+	}
+
+	printMCB(newnode);
+	return newnode->connection_id;
 }
 
 int send_file(char * file_name,int fd, int id)
@@ -625,15 +751,18 @@ int send_file(char * file_name,int fd, int id)
 
 	//Asign the value as per the file and message
 
-	re = assign_value_MCB(newnode,file_name,fd,id,SENDER)
+	re = assign_value_MCB(newnode,file_name,fd,id,SENDER);
 
 	if(re == -1)
 	{
 		return -1;
 	}
 
+	printf("connection id : %d\n",re);
 	return 0;
 }
+
+
 int handleUIreq(SYS _system)
 {
 	int fd = _system.host.ui_info.fd;
@@ -675,6 +804,14 @@ int handleUIreq(SYS _system)
 		if(sendfd == -1)
 		{
 			re = writeIntoUI(fd,"File not found..!!\n");
+			return re;
+		}
+		
+		re = getfilesizeByfd(sendfd);
+
+		if(re < 1)
+		{
+			re = writeIntoUI(fd,"File is empty...!!!\n");
 			return re;
 		}
 

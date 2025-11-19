@@ -3,9 +3,12 @@
 
 #define id_len 20
 #define MSGIDLEN 9
-#define pack_Header_size 14
+#define pack_Header_size 18
 
 #define generate_id(x,y) (((unsigned int) x << 16) | y)
+#define min(x,y) (x >= y ? x : y)
+#define div(x,y) (((x%y) != 0) ? (x/y)+1 : (x/y))
+#define printLine (printf("------------------------------------------------------------------\n"))
 
 #define SENDER 1
 #define RECIVER 2
@@ -25,7 +28,7 @@ struct HandShake
 struct MetaData
 {
 	char file_name[id_len];
-	int total_size;
+	long total_size;
 	int size_of_packet;
 	int total_no_packet;
 	int count_of_sub_pack;
@@ -33,9 +36,11 @@ struct MetaData
 
 struct InfoPack
 {
-	int count;
-	struct Meta_pack * Meta_pack;
-	char * Ack_bitv;
+	int count_AckPack;
+	int curr_count;
+	int * sub_Info_pack;
+	unsigned char bitVectsize;
+	unsigned char * ackBitv;
 };
 
 struct MCB
