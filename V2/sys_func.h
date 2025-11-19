@@ -1,5 +1,8 @@
+#include "sys_structs.h"
 #define Read_32(buff,index) (*(unsigned int *)&buff[index])
 #define Read_16(buff,index) (*(unsigned short int *)&buff[index])
+
+SYS _system;
 
 int config_system(SYS * _system,char config_file[])
  {
@@ -167,6 +170,15 @@ int config_system(SYS * _system,char config_file[])
          fclose(config_pid);
          return 0;
  }
+
+int craete_MCB_control(SYS * _system)
+{
+	_system->MCB_C.count = 0;
+	_system->MCB_C.head = NULL;
+	_system->MCB_C.tail = NULL;
+
+	return 0;
+}
 
 int create_ear(struct ear * ele)
 {
@@ -499,10 +511,133 @@ int killAllChild(struct host_Info host)
 	ret = close(host.ui_info.fd);
 	return ret;
 }
+
+int checkfilexsits(char * file_name)
+{
+	printf("file name : %s\n",file_name);
+	return open(file_name,O_RDONLY);
+}
+
+struct MCB * create_new_node()
+{
+	struct MCB * newn = (struct MCB *)malloc(sizeof(struct MCB));
+
+	if(newn == NULL)
+	{
+		return newn;
+	}
+
+	if((_system.MCB_control.head == NULL) && (_system.MCB_control.tail == NULL))
+	{
+		newn->next = newn;
+		newn->prev = newn;
+		_system.MCB_control.head = newn;
+		_system.MCB_control.tail = newn;
+	}
+	else
+	{
+		_system.MCB_control.tail->next = newn;
+		newn->next = _system.MCB_control.head;
+		newn->prev = _system.MCB_control.tail;
+		_system.MCB_control.head->prev = newn;
+		_system.MCB_control.tail = newn;		
+	}
+
+	_system.MCB_control.count += 1;
+
+	return newn;
+}
+
+//it will craete default node and add into the list or table
+struct MCB * create_new_MCB()
+{
+	struct MCB * newnode = create_new_node();
+
+	if(newnode == NULL)
+	{
+		return newnode;
+	}
+
+	//connection id
+	newnode->connection_id = 0;
+	newnode->con_type = SENDER;
+	newnode->src_port = 0;
+	newnode->dest_port = 0;
+
+	newnode->state = NEW;
+	newnode->sub_state = 0;
+	newnode->alarm = 0;
+	newnode->ack = NULL;	
+	newnode->handshake = NULL;
+	newnode->metadata = NULL;
+	newnode->infopack = NULL;	
+
+	return newnode;
+}
+
+struct HandShake * create_new_handshake()
+{
+	struct HandShake newh = (struct HandShake *)malloc(sizeof(struct HandShake));
+
+	if(newh == NULL)
+	{
+		return NULL;
+	}
+
+	newh->is_connect = DISCONNECT;
+	newh->count_of_try = 0;
+
+	return newh;
+}
+
+int assign_value_MCB(struct MCB * node, char * file_name,int fd, int id, char type)
+{
+	newnode->connection_id = generate_id(_system.host.ear_Info.ears[0].port.port_no,_system.peer.peers[id].ports[0].port_no);
+	newnode->con_type = type;
+	newnode->src_port = _system.host.ear_Info.ears[0].port.port_no;
+	newnode->dest_port =  _system.peer.peers[id].ports[0].port_no;
+
+	//create a hanshake object for the new connection
+	newnode->handshake = create_new_handshake();
+	if(newnode->handshake == NULL)
+	{
+		return -1;
+	}
+
+	//now create the metadata all message
+	newnode->metadata = create_new_metadata()
+
+}
+
+int send_file(char * file_name,int fd, int id)
+{
+	printf("file fd : %d\n",fd);
+	printf("user id : %s\n",_system.peer.peers[id].id);
+	int re = 0;
+	struct MCB * newnode;
+
+	//create a MCB assign default value for it
+	newnode = create_new_MCB();
+	if(newnode == NULL)
+	{
+		return -1;
+	}
+
+	//Asign the value as per the file and message
+
+	re = assign_value_MCB(newnode,file_name,fd,id,SENDER)
+
+	if(re == -1)
+	{
+		return -1;
+	}
+
+	return 0;
+}
 int handleUIreq(SYS _system)
 {
 	int fd = _system.host.ui_info.fd;
-	int id = 0, sendfd = 0;
+	int id = 0, sendfd = 0, re = 0;
 
 	char buffer[1024] = {};
 	unsigned short int type = 0;
@@ -536,15 +671,14 @@ int handleUIreq(SYS _system)
 			re = writeIntoUI(fd,"Id not found..!!");
 			return re;
 		}
-		
-		sendfd = checkfilexsits(&buffer[22]);
+		sendfd = checkfilexsits(&buffer[26]);
 		if(sendfd == -1)
 		{
 			re = writeIntoUI(fd,"File not found..!!\n");
 			return re;
 		}
 
-		re = send_file(sendfd);
+		re = send_file(&buffer[26],sendfd,id);
 
 		if(re < 0)
 		{

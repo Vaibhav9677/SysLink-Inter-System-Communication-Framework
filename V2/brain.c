@@ -10,7 +10,7 @@
 #include"sys_func.h"
 #define data_len 1024
 
-SYS _system;
+//SYS _system;
 
 int main(int argc, char * argv[])
 {
@@ -70,8 +70,23 @@ int main(int argc, char * argv[])
 	}
 	printf("Configuration of UI part.....Done\n");
 
+	re = craete_MCB_control(&_system);
+
+	if(re == -1)
+	{
+		printf("ERROR : while creating the MCB control...\n");
+		exit(EXIT_FAILURE);
+	}
+
 	while(1)
 	{
+		re = handleEarreq(_system);
+		if(re == -1)
+		{
+			printf("brain : error while handling ear request\n");
+		}
+		
+		re = 0;
 		re = handleUIreq(_system);
 		if(re == -1)
 		{
@@ -80,13 +95,6 @@ int main(int argc, char * argv[])
 		else if(re == -2)
 		{
 			break;
-		}
-		re = 0;
-
-		re = handleEarreq(_system);
-		if(re == -1)
-		{
-			printf("brain : error while handling ear request\n");
 		}
 	}
 	return 0;

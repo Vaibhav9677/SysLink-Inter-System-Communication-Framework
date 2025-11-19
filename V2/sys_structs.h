@@ -2,23 +2,33 @@
 #define sys_structs
 
 #define id_len 20
+#define MSGIDLEN 9
 #define pack_Header_size 14
+
+#define generate_id(x,y) (((unsigned int) x << 16) | y)
+
+#define SENDER 1
+#define RECIVER 2
+#define NEW 0
+#define CONNECT 0
+#define DISCONNECT 1
 
 typedef unsigned short int us_int;
 typedef struct _system SYS;
 
 struct HandShake
 {
-	bool is_connect;
+	char is_connect;
 	char count_of_try;
 };
 
 struct MetaData
 {
+	char file_name[id_len];
 	int total_size;
-	int count_of_sub_pack;
 	int size_of_packet;
 	int total_no_packet;
+	int count_of_sub_pack;
 };
 
 struct InfoPack
@@ -31,23 +41,23 @@ struct InfoPack
 struct MCB
 {
 	//connection status
-	char con_type;
-	us_int src_port;
-	us_int dest_port;
-	int msg_id;
-	int fd;
-	char state;
-	char sub_state;
-	int alarm;
-	char * ack;
+	unsigned int connection_id;			//generate using src + dest
+	us_int src_port;			//sender address
+	us_int dest_port;			//destination address
+	char con_type;				//sender
+	int fd;						// file desciptor
+	char state;					//new (next is connection)
+	char sub_state;				//0
+	int alarm;					//0
+	char * ack;					//null
 	//connection 
-	struct HandShake * handshake;
+	struct HandShake * handshake;	//null
 
 	//metadata
-	struct MetaData * metadata;
+	struct MetaData * metadata;		//null
 
 	//infopacket
-	struct InfoPack * infopack;
+	struct InfoPack * infopack;		//null
 
 	struct MCB * next;
 	struct MCB * prev;
@@ -105,14 +115,14 @@ struct _ui_info{
 struct MCB_control
 {
 	int count;
-	struct * MCB head;
-	struct * MCB tail;
-}
+	struct MCB * head;
+	struct MCB * tail;
+};
 struct _system
 {
-         struct host_Info host;
-         struct peers_info peer;
-	 struct MCB_control;
+        struct host_Info host;
+        struct peers_info peer;
+	 	struct MCB_control MCB_C;
 };
 
 #endif

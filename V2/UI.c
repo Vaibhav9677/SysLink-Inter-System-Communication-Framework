@@ -115,7 +115,7 @@ void send_message(unsigned short int op,int fd)
 //	printf("Output : %s\n",buffer);
 }
 
-int sendfile(unsigned short int op,fd)
+int sendfile(unsigned short int op,int fd)
 {
 	char buffer[data_len];
 	Read_16(buffer,0) = op;
