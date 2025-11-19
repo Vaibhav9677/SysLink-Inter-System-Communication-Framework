@@ -502,7 +502,7 @@ int killAllChild(struct host_Info host)
 int handleUIreq(SYS _system)
 {
 	int fd = _system.host.ui_info.fd;
-	int re = 0;
+	int id = 0, sendfd = 0;
 
 	char buffer[1024] = {};
 	unsigned short int type = 0;
@@ -530,18 +530,25 @@ int handleUIreq(SYS _system)
 	{
 		//printf("message of type 1 send message\n");
 		//check id exits or not
-		re = check_id(_system.peer,&buffer[2]);	
-		if(re < 0)
+		id = check_id(_system.peer,&buffer[2]);	
+		if(id < 0)
 		{	
 			re = writeIntoUI(fd,"Id not found..!!");
 			return re;
 		}
 		
-		re = send_message(_system,buffer,(us_int)re);
+		sendfd = checkfilexsits(&buffer[22]);
+		if(sendfd == -1)
+		{
+			re = writeIntoUI(fd,"File not found..!!\n");
+			return re;
+		}
+
+		re = send_file(sendfd);
 
 		if(re < 0)
 		{
-			re = writeIntoUI(fd,"ERROR : while sending the messgae...");
+			re = writeIntoUI(fd,"ERROR : while sending the file....");
 			return re;
 		}
 

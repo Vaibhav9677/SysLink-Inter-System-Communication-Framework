@@ -1,6 +1,0 @@
-gcc ear.c -o ear
-gcc mouth.c -o mouth
-gcc UI.c -o UI
-gcc brain.c -o brain
-./brain config
-

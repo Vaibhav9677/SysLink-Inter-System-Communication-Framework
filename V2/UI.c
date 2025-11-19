@@ -115,10 +115,34 @@ void send_message(unsigned short int op,int fd)
 //	printf("Output : %s\n",buffer);
 }
 
+int sendfile(unsigned short int op,fd)
+{
+	char buffer[data_len];
+	Read_16(buffer,0) = op;
+	printf("Enter the id : \n");
+	getchar();
+	scanf("%[^\n]",&buffer[2]);
+	printf("Enter the file name :");
+	getchar();
+	scanf("%[^\n]",&buffer[26]);
+	Read_32(buffer,22) = strlen(&buffer[26]);
+
+	if(write_ubfile(buffer,fd) == -1)
+	{
+		return -1;
+	}
+
+	if(fetch_response(buffer,fd) < 0)
+	{
+		printf("ERROR : while fatching resopnce\n");
+		return -1;
+	}
+}
+
 int main(int argc, char * argv[])
 {
 	unsigned short int op = 0;
-	int fd = 0;
+	int fd = 0,re = 0;
 	char buffer[data_len];
 
 	if((fd = open(argv[1],O_RDWR)) < 0)
@@ -130,15 +154,20 @@ int main(int argc, char * argv[])
 	while(1)
 	{
 		printf("--------------------------Application Menu------------------------\n");
-		printf("1 : Send the message \n");
+		printf("1 : Send the file \n");
 		printf("2 : Shut down the system \n");
 		printf("Enter the opration : \n");
 		scanf("%hd",&op);
 
 		if(op == 1)
 		{
-			send_message(op,fd);			
+			re = sendfile(op,fd);			
 			
+			if(re == -1)
+			{
+				printf("Error : while sending the file\n");
+				continue;
+			}
 			if((fetch_response(buffer,fd)) < 0)
 			{
 				printf("error");
