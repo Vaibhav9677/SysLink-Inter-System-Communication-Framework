@@ -3,7 +3,52 @@
 #define Read_16(buff,index) (*(unsigned short int *)&buff[index])
 
 SYS _system;
+unsigned long sysTime = 0;
+unsigned char TIMER_ON = 1;
+pthread_t thread_id;
 
+void * system_timmer()
+{
+	struct MCB * temp = NULL;
+	while(TIMER_ON)
+	{
+		if(_system.MCB_C.head != NULL)
+		{
+			temp = _system.MCB_C.head;
+			do{
+				if(temp->alarm != 0)
+				{
+					temp->alarm -= 1;
+					//printf("Connection id : %d 		Timmer : %d\n",temp->connection_id,temp->alarm);
+				}
+				temp = temp->next;
+			}while(temp != _system.MCB_C.head);
+		}
+		usleep(1000);
+		sysTime = (sysTime % 0xFFFFFFFF) + 1;
+	}
+}
+
+int SetSystemtimmer()
+{
+	int re = 0;
+
+	re = pthread_create(&thread_id,NULL,(void *)&system_timmer,NULL);
+
+	if(re != 0)
+	{
+		return -1;
+	}
+
+	re = pthread_detach(thread_id);
+
+	if(re != 0)
+	{
+		return -1;
+	}
+
+	return re;
+}
 int config_system(SYS * _system,char config_file[])
  {
          FILE * config_pid;
@@ -571,6 +616,7 @@ void printMCB(struct MCB * mcb)
 		i++;
 	}
 
+	printf("Size of bit vector : %d\n",mcb->infopack->bitVectsize);
 	printf("bit vector : %s\n",mcb->infopack->ackBitv);
 
 	printLine;
@@ -623,7 +669,8 @@ struct MCB * create_new_MCB()
 
 	newnode->state = NEW;
 	newnode->sub_state = 0;
-	newnode->alarm = 0;
+	newnode->alarm = DEFAULT_TIMMER;
+	newnode->is_waiting = 0;
 	newnode->ack = NULL;	
 	newnode->handshake = NULL;
 	newnode->metadata = NULL;
@@ -731,10 +778,16 @@ int assign_value_MCB(struct MCB * newnode, char * file_name,int fd, int id, char
 		return -1;
 	}
 
-	printMCB(newnode);
 	return newnode->connection_id;
 }
 
+int MCB_Scheduler(struct MCB * mcb)
+{
+	printf("Inside the scheduler\n");
+
+	getSystemtime;
+	return 0;
+}
 int send_file(char * file_name,int fd, int id)
 {
 	printf("file fd : %d\n",fd);
@@ -758,7 +811,11 @@ int send_file(char * file_name,int fd, int id)
 		return -1;
 	}
 
+	//printMCB(newnode);
 	printf("connection id : %d\n",re);
+
+	re = MCB_Scheduler(newnode);
+
 	return 0;
 }
 

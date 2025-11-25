@@ -9,15 +9,17 @@
 #define min(x,y) (x >= y ? x : y)
 #define div(x,y) (((x%y) != 0) ? (x/y)+1 : (x/y))
 #define printLine (printf("------------------------------------------------------------------\n"))
-
+#define getSystemtime (printf("System time : %ld\n",sysTime))
 #define SENDER 1
 #define RECIVER 2
 #define NEW 0
 #define CONNECT 0
 #define DISCONNECT 1
+#define DEFAULT_TIMMER 50
 
 typedef unsigned short int us_int;
 typedef struct _system SYS;
+
 
 struct HandShake
 {
@@ -53,6 +55,7 @@ struct MCB
 	int fd;						// file desciptor
 	char state;					//new (next is connection)
 	char sub_state;				//0
+	char is_waiting;
 	int alarm;					//0
 	char * ack;					//null
 	//connection 

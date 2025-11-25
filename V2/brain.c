@@ -8,6 +8,7 @@
 #include<sys/wait.h>
 #include <sys/stat.h>
 #include <math.h>
+#include <pthread.h>
 #include"sys_structs.h"
 #include"sys_func.h"
 
@@ -80,6 +81,17 @@ int main(int argc, char * argv[])
 		printf("ERROR : while creating the MCB control...\n");
 		exit(EXIT_FAILURE);
 	}
+
+	re = SetSystemtimmer();
+	if(re == -1)
+	{
+		printf("ERROR : while setting system timmer\n");
+		exit(EXIT_FAILURE);
+	}
+
+	printf("System timmer set\n");
+
+	getSystemtime;
 
 	while(1)
 	{
