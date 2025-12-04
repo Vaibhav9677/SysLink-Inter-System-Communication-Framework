@@ -10,16 +10,30 @@
 #define div(x,y) (((x%y) != 0) ? (x/y)+1 : (x/y))
 #define printLine (printf("------------------------------------------------------------------\n"))
 #define getSystemtime (printf("System time : %ld\n",sysTime))
+#define data_buff_size (_system.host.mouth_Info.capcity - pack_Header_size)
+#define packet_size _system.host.mouth_Info.capcity
+#define clear_packet (memset(packet,-1,packet_size))
+#define clear_databuff (memset(data_buff,-1,data_buff_size))
+
+#define CNT_OF_TRY 3
 #define SENDER 1
 #define RECIVER 2
+
 #define NEW 0
+#define CONNECTING 1
+
 #define CONNECT 0
 #define DISCONNECT 1
-#define DEFAULT_TIMMER 50
+#define DEFAULT_TIMMER 0
 
-typedef unsigned short int us_int;
+#define SYN 0
+
+
+typedef unsigned short int _us_int;
+typedef unsigned char _u_char;
+typedef unsigned int _u_int;
+
 typedef struct _system SYS;
-
 
 struct HandShake
 {
@@ -49,13 +63,14 @@ struct MCB
 {
 	//connection status
 	unsigned int connection_id;			//generate using src + dest
-	us_int src_port;			//sender address
-	us_int dest_port;			//destination address
+	_us_int src_port;			//sender address
+	_us_int dest_port;			//destination address
 	char con_type;				//sender
 	int fd;						// file desciptor
 	char state;					//new (next is connection)
 	char sub_state;				//0
-	char is_waiting;
+	char is_waiting;			// 0 => alarm off 1 => waiting for ack 2 => ack recived
+	int temp;
 	int alarm;					//0
 	char * ack;					//null
 	//connection 
@@ -72,8 +87,8 @@ struct MCB
 };
 
 struct port_info{
-       us_int  port_no;
-       us_int capcity;
+       _us_int  port_no;
+       _us_int capcity;
 };
 
 struct ear
@@ -86,13 +101,13 @@ struct ear
 
 struct _ear_Info
 {
-        us_int count;
+        _us_int count;
         struct ear * ears;
 };
 
 struct _mouth_Info
 {
-        us_int capcity;
+        _us_int capcity;
         int p_id;
 	int fd;
 };
@@ -116,7 +131,7 @@ struct _ui_info{
  };
 
  struct peers_info{
-         us_int count;
+         _us_int count;
          struct peer * peers;
  };
 

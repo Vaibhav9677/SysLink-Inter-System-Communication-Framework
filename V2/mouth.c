@@ -45,7 +45,7 @@ int main(int argc, char * argv[])
 {
   int sockfd,n = 0, fd = 0,data_len = atoi(argv[2]);
   char buffer[data_len];
-  int actualdatalen = 0;
+  int actualdatalen = data_len;
 
   struct sockaddr_in   receiverAddr;
 
@@ -81,11 +81,11 @@ int main(int argc, char * argv[])
 		continue;
 	}
 	
-	if((n = read(fd,&actualdatalen,2)) < 0)
-	{
-		perror("mouth : ");
-		exit(EXIT_FAILURE);
-	}
+	//if((n = read(fd,&actualdatalen,2)) < 0)
+	//{
+	//	perror("mouth : ");
+	//	exit(EXIT_FAILURE);
+	//}
 //	printf("data length : %d\n",actualdatalen);
 
 	if((((checkLockflag(fd)) == 1) && ((is_nextReqArrived(fd,actualdatalen)) == 0)) ||

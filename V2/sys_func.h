@@ -6,6 +6,8 @@ SYS _system;
 unsigned long sysTime = 0;
 unsigned char TIMER_ON = 1;
 pthread_t thread_id;
+unsigned char * data_buff = NULL;
+unsigned char * packet = NULL;
 
 void * system_timmer()
 {
@@ -446,27 +448,9 @@ short int check_id(struct peers_info ptr, char * id)
 	return (cnt == ptr.count) ? -1 : cnt;
 }
 
-char * create_message(us_int msg_size,us_int des,us_int src,char type,int size, char * data)
+int writeIntomouthfile(int fd, char * buffer,_us_int size)
 {
-	char * msg = (char *)malloc(1 * msg_size);
-	
-	//des 0
-	Read_16(msg,0) = des;
-	//src 2
-	Read_16(msg,2) = src;
-	//type 
-	msg[4] = type;
-	//size 5
-	Read_32(msg,5) = size;
-	//copy data 
-	strcpy(&msg[9],data);
-
-	return msg;
-}
-
-int writeIntomouthfile(int fd, char * buffer,us_int size)
-{
-	us_int ret = 0;
+	_us_int ret = 0;
 
 	//lock file for writting
 	if((ret = changeLockflag(fd,1)) < 0)
@@ -493,32 +477,49 @@ int writeIntomouthfile(int fd, char * buffer,us_int size)
 	return ret;
 }
 
-int send_message(SYS _system,char * buffer, us_int id)
+int createCleanBuff()
 {
-	char * msg = NULL;
-	us_int mesg_size;
-	us_int src = _system.host.ear_Info.ears[0].port.port_no;
-	us_int des = _system.peer.peers[id].ports[0].port_no;
-
-	//define message size
-	mesg_size = (_system.host.mouth_Info.capcity <= _system.peer.peers[id].ports[0].capcity) ?
-		_system.host.mouth_Info.capcity : _system.peer.peers[id].ports[0].capcity;
-
-	//create a message to mouthi messagesize,des,src,type,datalength,data
-	msg = create_message(mesg_size,des,src,1,Read_32(buffer,22),&buffer[26]);
-
-	if(msg == NULL)
+	data_buff = (unsigned char *)malloc(sizeof(unsigned char) * data_buff_size);
+	
+	if(data_buff == NULL)
 	{
 		return -1;
 	}
 
-//	printf("message to send mouth : des : %hd\n src : %hd\n type : %d\n data length: %d\n data: %s\n ",
-//		Read_16(msg,0), Read_16(msg,2),msg[4],Read_32(msg,5),&msg[9]);
-		
-	//write into the mouth file
-	
-	return writeIntomouthfile(_system.host.mouth_Info.fd,msg,mesg_size);
-	//get port number destination
+	packet = (unsigned char *)malloc(sizeof(unsigned char) * packet_size);
+
+	if(packet == NULL)
+	{
+		return -1;
+	}
+
+	clear_databuff;
+	clear_packet;
+}
+char * create_message(_us_int src_port, _us_int dest_port,_u_char pack_type, _u_int connection_id,
+					_u_int seq_no, _u_char ack, _u_int dataLen, _u_char * buffer)
+{
+	clear_databuff;
+	Read_16(packet,0) = dest_port;		//dest 0
+	Read_16(packet,2) = src_port;		//src 	2
+	packet[4] = pack_type;				//packet type 4
+	Read_32(packet,5) = connection_id;	//conn id 5
+	Read_32(packet,9) = seq_no;			//seq no 9
+	packet[13] = ack;					//ack 13
+	Read_32(packet,14) = dataLen;		//datalen 14
+
+	//data	19 to min(src,dst)
+
+	memcpy(&packet[19],buffer,dataLen);
+
+	return packet;
+}
+
+int send_System_message(_us_int src_port,_us_int dest_port,_u_char pack_type, _u_int connection_id,_u_int seq_no,
+						_u_char ack,_u_int dataLen,_u_char * buffer)
+{
+	char * mesg = create_message(src_port,dest_port,pack_type,connection_id,seq_no,ack,dataLen,buffer);
+	return writeIntomouthfile(_system.host.mouth_Info.fd,mesg,packet_size);
 }
 
 int killAllChild(struct host_Info host)
@@ -709,6 +710,63 @@ struct HandShake * create_new_handshake()
 	return newh;
 }
 
+struct MCB * getElementByid(int connection_id)
+{
+	struct MCB * temp = NULL;
+	if(_system.MCB_C.count < 1)
+	{
+		return temp;
+	}
+
+	temp = _system.MCB_C.head;
+
+	do
+	{
+		if(temp->connection_id == connection_id)
+		{
+			break;
+		}
+		temp = temp->next;
+	}while(temp != _system.MCB_C.head);
+
+	return temp;
+}
+
+int closeConnt(int connection_id)
+{
+	//get that element
+	struct MCB * element= NULL;
+
+	element = getElementByid(connection_id);
+	if(element == NULL)
+	{
+		return -1;
+	}
+
+	//no of element is  1
+	if(_system.MCB_C.count == 1)
+	{
+		free(element);
+		_system.MCB_C.head,_system.MCB_C.tail = NULL;
+	}
+	
+	(element->next)->prev = element->prev;
+	(element->prev)->next = element->next;
+
+	if(element == _system.MCB_C.head)
+	{
+		_system.MCB_C.head = element->next;
+	}
+	else if(element == _system.MCB_C.tail)
+	{
+		_system.MCB_C.tail = element->prev;
+	}
+
+	_system.MCB_C.count -= 1;
+
+	return _system.MCB_C.count;
+}
+
 struct MetaData * create_new_metadata(char * file_name, int fd,int id)
 {
 	struct MetaData * newm = (struct MetaData *)malloc(sizeof(struct MetaData));
@@ -749,7 +807,6 @@ struct InfoPack * create_new_Infopack(int No_sub_pack)
 
 	return newi;
 }
-
 int assign_value_MCB(struct MCB * newnode, char * file_name,int fd, int id, char type)
 {
 	newnode->connection_id = generate_id(_system.host.ear_Info.ears[0].port.port_no,_system.peer.peers[id].ports[0].port_no);
@@ -781,11 +838,73 @@ int assign_value_MCB(struct MCB * newnode, char * file_name,int fd, int id, char
 	return newnode->connection_id;
 }
 
+void setAlram(int * Alram,int tik)
+{
+	*(Alram) = tik;
+}
+
+int actionFornew(struct MCB * mcb)
+{
+	int re = 0;
+	clear_databuff;
+	mcb->temp = random();
+	Read_32(data_buff,0) = mcb->temp;
+		//establish the connection 
+	re = send_System_message(mcb->src_port,mcb->dest_port,SYN,mcb->connection_id,0,0,4,data_buff);
+	
+	if(re == -1)
+	{
+		return re;
+	}
+
+	setAlram(&mcb->alarm,5);
+	mcb->handshake->count_of_try += 1;
+	mcb->state = CONNECTING;
+
+	return 0;
+}
+
 int MCB_Scheduler(struct MCB * mcb)
 {
 	printf("Inside the scheduler\n");
 
-	getSystemtime;
+	int re = 0;
+	//check the node status and the is waiting for the ack
+
+	//state is NEW
+
+	if(mcb->state == NEW)
+	{
+		return actionFornew(mcb);		
+	}
+	else if(mcb->state == CONNECTING)
+	{
+		//alarm is not off and waiting for ack
+		// 2type access 1 interut and outine
+		if((mcb->is_waiting == 1) && (mcb->alarm > 0))
+		{
+			return 0;
+		}
+
+		//check the count of try to connect and if try greater than CNT_OF_TRY then close the connection 
+		if(mcb->handshake->count_of_try > CNT_OF_TRY)
+		{
+			re = closeConnt(mcb->connection_id);
+
+			if(re == -1)
+			{
+				return re;
+			}
+
+			re = writeIntoUI(_system.host.ui_info.fd,"Unable to connect...try again");
+			if(re == -1)
+			{
+				return re;
+			}
+		}
+		
+		return actionFornew(mcb);
+	}
 	return 0;
 }
 int send_file(char * file_name,int fd, int id)
@@ -906,7 +1025,32 @@ int handleUIreq(SYS _system)
 	return 0;
 }
 
-char is_nextReq(int fd,us_int cap)
+int checkAndProcessConnt()
+{
+	if(_system.MCB_C.count < 1)
+	{
+		return 0;
+	}
+
+	int re = 0;
+	struct MCB * temp = _system.MCB_C.head;
+
+	do
+	{
+		re = MCB_Scheduler(temp);
+
+		if(re == -1)
+		{
+			printf("ERROR : while handling connection : %d\n",temp->connection_id);
+		}
+
+		temp = temp->next;
+	}while(temp != _system.MCB_C.head);
+
+	return 0;
+}
+
+char is_nextReq(int fd,_us_int cap)
 {
 	int cop = lseek(fd,0,SEEK_CUR);
 	int top = lseek(fd,0,SEEK_END);
@@ -923,7 +1067,7 @@ char is_nextReq(int fd,us_int cap)
 	}
 }
 
-short int getReq(int fd,char * buff,us_int cap)
+short int getReq(int fd,char * buff,_us_int cap)
 {	
 	short int n = 0;
 
@@ -961,9 +1105,9 @@ void  reverse_string(char * buff, int len)
 }
 int handleEarreq(SYS _system)
 {
-	us_int cap = _system.host.ear_Info.ears[0].port.capcity;
+	_us_int cap = _system.host.ear_Info.ears[0].port.capcity;
 	int fd = _system.host.ear_Info.ears[0].fd;
-	us_int uifd = _system.host.ui_info.fd;
+	_us_int uifd = _system.host.ui_info.fd;
 	short int ret = 0;
 	char * msg = NULL;
 	
@@ -982,7 +1126,7 @@ int handleEarreq(SYS _system)
 	if(buff[4] == 1)
 	{
 		reverse_string(&buff[9],Read_32(buff,5));
-		msg = create_message(cap,Read_16(buff,2),Read_16(buff,0),2,Read_32(buff,5),&buff[9]);
+		//msg = create_message(cap,Read_16(buff,2),Read_16(buff,0),2,Read_32(buff,5),&buff[9]);
 		ret = writeIntomouthfile(_system.host.mouth_Info.fd,msg,cap);
 
 	}

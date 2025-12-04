@@ -91,17 +91,34 @@ int main(int argc, char * argv[])
 
 	printf("System timmer set\n");
 
+	re = createCleanBuff();
+
+	if(re == -1)
+	{
+		printf("ERROR : while creating and clearing buffer\n");
+		exit(EXIT_FAILURE);
+	}
+
 	getSystemtime;
 
 	while(1)
 	{
+		//handle the ear req
+		re = 0;
 		re = handleEarreq(_system);
 		if(re == -1)
 		{
 			printf("brain : error while handling ear request\n");
 		}
+
+		//check the state and process
+		re = checkAndProcessConnt();
+		if(re == -1)
+		{
+			printf("brain : error while checking and processing connection\n");
+		}
 		
-		re = 0;
+		//handle UI req
 		re = handleUIreq(_system);
 		if(re == -1)
 		{
