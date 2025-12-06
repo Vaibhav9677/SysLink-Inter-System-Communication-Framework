@@ -62,7 +62,7 @@ int main(int argc, char * argv[])
 	
 	while(1)
 	{
-		printf("Waiting for the data packets......\n");
+		//printf("Waiting for the data packets......\n");
 		n = recvfrom(sockfd,buff,data_len,MSG_WAITALL,NULL,NULL);
 	
 		//file lock
@@ -81,8 +81,8 @@ int main(int argc, char * argv[])
 		{
 			continue;
 		}
-//		printf("data reciveed\n");
-//		printf("message form socket into the ear :  des : %hd | src : %hd | type : %d | datalen : %d| data : %s\n",Read_16(buff,0),Read_16(buff,2),buff[4],Read_32(buff,5),&buff[9]);
+//		printf("message from the ear after : des : %hd | src : %hd | packet type : %d |connection id: %d |seq no : %d |Ack : %d | data length: %d | data: %s\n ",
+		//Read_16(buff,0), Read_16(buff,2),buff[4],Read_32(buff,5),Read_32(buff,9),buff[13],Read_32(buff,14),&buff[19]);
 	}
 		
 	close(fd);

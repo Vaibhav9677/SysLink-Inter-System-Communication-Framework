@@ -21,13 +21,23 @@
 
 #define NEW 0
 #define CONNECTING 1
-
 #define CONNECT 0
 #define DISCONNECT 1
+
 #define DEFAULT_TIMMER 0
+#define ALROFF 0
 
 #define SYN 0
+#define SYNACK 1
 
+#define DEST_OFF 0
+#define SRC_OFF 2
+#define PACKTYPE_OFF 4
+#define CONNID_OFF 5
+#define SEQNO_OFF 9
+#define ACK_OFF 13
+#define DATALEN_OFF 14
+#define DATA_OFF 19
 
 typedef unsigned short int _us_int;
 typedef unsigned char _u_char;

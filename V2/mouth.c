@@ -75,12 +75,7 @@ int main(int argc, char * argv[])
 
 	//printf("waiting for the data \n");
 	 //brain writting new req
-	
-	if((is_nextReqArrived(fd,2)) == 0)
-	{
-		continue;
-	}
-	
+
 	//if((n = read(fd,&actualdatalen,2)) < 0)
 	//{
 	//	perror("mouth : ");
@@ -100,9 +95,10 @@ int main(int argc, char * argv[])
 		exit(EXIT_FAILURE);
 	}
 
-//	printf("message form the mouth which to be sent : des : %hd | src : %hd | type : %d | data len : %d | data : %s\n",Read_16(buffer,0),Read_16(buffer,2),buffer[4],Read_32(buffer,5),&buffer[9]);
-//	printf("requenst size : %d\n",n);
-  	memset(&receiverAddr, 0, sizeof(receiverAddr));
+	//printf("message from brain in mouth : des : %hd | src : %hd | packet type : %d |connection id: %d |seq no : %d |Ack : %d | data length: %d | data: %s\n ",
+	//Read_16(buffer,0), Read_16(buffer,2),buffer[4],Read_32(buffer,5),Read_32(buffer,9),buffer[13],Read_32(buffer,14),&buffer[19]);
+  
+	memset(&receiverAddr, 0, sizeof(receiverAddr));
   	receiverAddr.sin_family = AF_INET;
   	receiverAddr.sin_port = htons(Read_16(buffer,0));
   	receiverAddr.sin_addr.s_addr = INADDR_ANY;

@@ -110,7 +110,7 @@ int main(int argc, char * argv[])
 		{
 			printf("brain : error while handling ear request\n");
 		}
-
+		
 		//check the state and process
 		re = checkAndProcessConnt();
 		if(re == -1)

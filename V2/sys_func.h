@@ -457,12 +457,7 @@ int writeIntomouthfile(int fd, char * buffer,_us_int size)
 	{
 		return ret;
 	}
-	
-	//write data size 
-	if((ret = write(fd,&size,2)) < 0)
-	{
-		return ret;
-	}
+
 	//data write
 	if((ret = write(fd,buffer,size)) < 0)
 	{
@@ -499,7 +494,7 @@ int createCleanBuff()
 char * create_message(_us_int src_port, _us_int dest_port,_u_char pack_type, _u_int connection_id,
 					_u_int seq_no, _u_char ack, _u_int dataLen, _u_char * buffer)
 {
-	clear_databuff;
+	clear_packet;
 	Read_16(packet,0) = dest_port;		//dest 0
 	Read_16(packet,2) = src_port;		//src 	2
 	packet[4] = pack_type;				//packet type 4
@@ -519,6 +514,10 @@ int send_System_message(_us_int src_port,_us_int dest_port,_u_char pack_type, _u
 						_u_char ack,_u_int dataLen,_u_char * buffer)
 {
 	char * mesg = create_message(src_port,dest_port,pack_type,connection_id,seq_no,ack,dataLen,buffer);
+
+	//printf("Messgae create and packetsize L %d\n",packet_size);
+	//printf("message created in the brain :\n des : %hd |\n src : %hd |\n packet type : %d |\nconnection id: %d |\nseq no : %d |\nAck : %d |\n data length: %d |\n data: %s\n ",
+	//Read_16(mesg,0), Read_16(mesg,2),mesg[4],Read_32(mesg,5),Read_32(mesg,9),mesg[13],Read_32(mesg,14),&mesg[19]);
 	return writeIntomouthfile(_system.host.mouth_Info.fd,mesg,packet_size);
 }
 
@@ -710,7 +709,7 @@ struct HandShake * create_new_handshake()
 	return newh;
 }
 
-struct MCB * getElementByid(int connection_id)
+struct MCB * getElementByid(int connection_id,_u_char con_type)
 {
 	struct MCB * temp = NULL;
 	if(_system.MCB_C.count < 1)
@@ -722,7 +721,7 @@ struct MCB * getElementByid(int connection_id)
 
 	do
 	{
-		if(temp->connection_id == connection_id)
+		if((temp->connection_id == connection_id) && (temp->con_type == con_type))
 		{
 			break;
 		}
@@ -732,12 +731,12 @@ struct MCB * getElementByid(int connection_id)
 	return temp;
 }
 
-int closeConnt(int connection_id)
+int closeConnt(int connection_id,_u_char con_type)
 {
 	//get that element
 	struct MCB * element= NULL;
 
-	element = getElementByid(connection_id);
+	element = getElementByid(connection_id,con_type);
 	if(element == NULL)
 	{
 		return -1;
@@ -746,25 +745,37 @@ int closeConnt(int connection_id)
 	//no of element is  1
 	if(_system.MCB_C.count == 1)
 	{
-		free(element);
-		_system.MCB_C.head,_system.MCB_C.tail = NULL;
+		_system.MCB_C.head = NULL;
+		_system.MCB_C.tail = NULL;
 	}
-	
-	(element->next)->prev = element->prev;
-	(element->prev)->next = element->next;
-
-	if(element == _system.MCB_C.head)
+	else
 	{
-		_system.MCB_C.head = element->next;
+		(element->next)->prev = element->prev;
+		(element->prev)->next = element->next;
+
+		if(element == _system.MCB_C.head)
+		{
+			_system.MCB_C.head = element->next;
+		}
+		
+		if(element == _system.MCB_C.tail)
+		{
+			_system.MCB_C.tail = element->prev;
+		}
 	}
-	else if(element == _system.MCB_C.tail)
+
+	if(_system.MCB_C.count > 0)
 	{
-		_system.MCB_C.tail = element->prev;
+		_system.MCB_C.count--;
+	}
+	else
+	{
+		_system.MCB_C.count = 0;
 	}
 
-	_system.MCB_C.count -= 1;
+	free(element);
 
-	return _system.MCB_C.count;
+	return 1;
 }
 
 struct MetaData * create_new_metadata(char * file_name, int fd,int id)
@@ -809,16 +820,30 @@ struct InfoPack * create_new_Infopack(int No_sub_pack)
 }
 int assign_value_MCB(struct MCB * newnode, char * file_name,int fd, int id, char type)
 {
-	newnode->connection_id = generate_id(_system.host.ear_Info.ears[0].port.port_no,_system.peer.peers[id].ports[0].port_no);
+	if(type == SENDER)
+	{
+		newnode->connection_id = generate_id(_system.host.ear_Info.ears[0].port.port_no,_system.peer.peers[id].ports[0].port_no);
+		newnode->src_port = _system.host.ear_Info.ears[0].port.port_no;
+		newnode->dest_port =  _system.peer.peers[id].ports[0].port_no;
+	}
+	else
+	{
+		newnode->connection_id = id;
+	}
+
 	newnode->con_type = type;
-	newnode->src_port = _system.host.ear_Info.ears[0].port.port_no;
-	newnode->dest_port =  _system.peer.peers[id].ports[0].port_no;
+	
 
 	//create a hanshake object for the new connection
 	newnode->handshake = create_new_handshake();
 	if(newnode->handshake == NULL)
 	{
 		return -1;
+	}
+
+	if(type != SENDER)
+	{
+		return 0;
 	}
 
 	//now create the metadata all message
@@ -850,6 +875,8 @@ int actionFornew(struct MCB * mcb)
 	mcb->temp = random();
 	Read_32(data_buff,0) = mcb->temp;
 		//establish the connection 
+	
+	//printMCB(mcb);
 	re = send_System_message(mcb->src_port,mcb->dest_port,SYN,mcb->connection_id,0,0,4,data_buff);
 	
 	if(re == -1)
@@ -857,16 +884,42 @@ int actionFornew(struct MCB * mcb)
 		return re;
 	}
 
-	setAlram(&mcb->alarm,5);
+	setAlram(&mcb->alarm,500);
+	mcb->is_waiting = 1;
 	mcb->handshake->count_of_try += 1;
 	mcb->state = CONNECTING;
+	mcb->sub_state = SYN;
+
+	return 0;
+}
+
+int actionFornewRECV(struct MCB * mcb)
+{
+	int re = 0;
+	clear_databuff;
+	Read_32(data_buff,0) = Read_32(mcb->ack,DATA_OFF) + 1;
+	mcb->temp = random();
+	Read_32(data_buff,4) = mcb->temp;
+
+	re = send_System_message(mcb->src_port,mcb->dest_port,SYNACK,mcb->connection_id,1,1,8,data_buff);
+
+	if(re == -1)
+	{
+		return re;
+	}
+
+	setAlram(&mcb->alarm,600);
+	mcb->is_waiting = 1;
+	mcb->handshake->count_of_try += 1;
+	mcb->state = CONNECTING;
+	mcb->sub_state = SYN;
 
 	return 0;
 }
 
 int MCB_Scheduler(struct MCB * mcb)
 {
-	printf("Inside the scheduler\n");
+	//printf("Inside the scheduler\n");
 
 	int re = 0;
 	//check the node status and the is waiting for the ack
@@ -875,35 +928,55 @@ int MCB_Scheduler(struct MCB * mcb)
 
 	if(mcb->state == NEW)
 	{
-		return actionFornew(mcb);		
-	}
-	else if(mcb->state == CONNECTING)
-	{
-		//alarm is not off and waiting for ack
-		// 2type access 1 interut and outine
-		if((mcb->is_waiting == 1) && (mcb->alarm > 0))
+		if(mcb->con_type == SENDER)
 		{
-			return 0;
+			return actionFornew(mcb);
 		}
-
-		//check the count of try to connect and if try greater than CNT_OF_TRY then close the connection 
-		if(mcb->handshake->count_of_try > CNT_OF_TRY)
+		else
 		{
-			re = closeConnt(mcb->connection_id);
+			return actionFornewRECV(mcb);
+		}
+	}
+	
+			//alarm is not off and waiting for ack
+		// 2type access 1 interut and outine
+	if((mcb->is_waiting == 1) && (mcb->alarm > 0))
+	{
+		return 0;
+	}
 
-			if(re == -1)
-			{
-				return re;
-			}
-
+	if(mcb->state == CONNECTING)
+	{
+		//check the count of try to connect and if try greater than CNT_OF_TRY then close the connection 
+		printf("count of try : %d\n",mcb->handshake->count_of_try);
+		if((mcb->handshake->count_of_try > CNT_OF_TRY) && (mcb->is_waiting == 1))
+		{
 			re = writeIntoUI(_system.host.ui_info.fd,"Unable to connect...try again");
 			if(re == -1)
 			{
 				return re;
 			}
+
+			re = closeConnt(mcb->connection_id,mcb->con_type);
+			return re;
 		}
-		
-		return actionFornew(mcb);
+
+		if((mcb->sub_state == SYN) && (mcb->alarm == ALROFF))
+		{
+			if(mcb->con_type == SENDER)
+			{
+				return actionFornew(mcb);
+			}
+			else
+			{
+				return actionFornewRECV(mcb);
+			}
+		}
+
+		if((mcb->sub_state == SYNACK) && (mcb->is_waiting == 0))
+		{
+			
+		}
 	}
 	return 0;
 }
@@ -921,6 +994,7 @@ int send_file(char * file_name,int fd, int id)
 		return -1;
 	}
 
+	printf("New node created\n");
 	//Asign the value as per the file and message
 
 	re = assign_value_MCB(newnode,file_name,fd,id,SENDER);
@@ -935,7 +1009,8 @@ int send_file(char * file_name,int fd, int id)
 
 	re = MCB_Scheduler(newnode);
 
-	return 0;
+	//printMCB(newnode);
+	return re;
 }
 
 
@@ -949,6 +1024,7 @@ int handleUIreq(SYS _system)
 
 	if((re = (int)checkLockflag(fd)) != 1)
 	{
+		//printf("flag is : %d\n",re);
 		return re;
 	}
 	
@@ -956,7 +1032,8 @@ int handleUIreq(SYS _system)
 	{
 		return re;
 	}
-//	printf("Message arived\n");
+	//writeIntoUI(fd,"Message arived");
+	printf("Message arived\n");
 
 	if((pread(fd,buffer,1024,1)) < 0)
 	{
@@ -999,7 +1076,7 @@ int handleUIreq(SYS _system)
 			return re;
 		}
 
-//		re = writeIntoUI(fd,"Message sent");
+		//re = writeIntoUI(fd,"Message sent\n");
 		return re;
 	}
 	else if(type == 2)
@@ -1021,30 +1098,49 @@ int handleUIreq(SYS _system)
 		//re = shutdown(_system);
 		return -2;
 	}
-
+	else
+	{
+		writeIntoUI(fd,"Unable to process this request");
+	}
 	return 0;
 }
 
 int checkAndProcessConnt()
 {
-	if(_system.MCB_C.count < 1)
+	if((_system.MCB_C.head == NULL) && (_system.MCB_C.tail == NULL))
 	{
 		return 0;
 	}
 
 	int re = 0;
 	struct MCB * temp = _system.MCB_C.head;
+	struct MCB * temp2 = NULL;
+
+	//printf("inside the check and process\n");
 
 	do
 	{
-		re = MCB_Scheduler(temp);
+		temp2 = temp->next;
+		if(temp->con_type == SENDER)
+		{
+			re = MCB_Scheduler(temp);
+		}
 
 		if(re == -1)
 		{
 			printf("ERROR : while handling connection : %d\n",temp->connection_id);
 		}
-
-		temp = temp->next;
+		else if(re == 1)
+		{
+			//there was only one element
+			if(_system.MCB_C.count == 0)
+			{
+				break;
+			}
+		}
+	
+		temp = temp2;
+		//printf("connection id : %d\n",temp->connection_id);
 	}while(temp != _system.MCB_C.head);
 
 	return 0;
@@ -1081,26 +1177,67 @@ short int getReq(int fd,char * buff,_us_int cap)
 	{
 		perror("ear ");
 	}
-//	printf("inside get req message from the ear : des : %hd | src : %hd | type : %d | data length: %d | data: %s\n ",
-//	Read_16(buff,0), Read_16(buff,2),buff[4],Read_32(buff,5),&buff[9]);
+	//printf("message from the ear after : des : %hd | src : %hd | packet type : %d |connection id: %d |seq no : %d |Ack : %d | data length: %d | data: %s\n ",
+	//Read_16(buff,0), Read_16(buff,2),buff[4],Read_32(buff,5),Read_32(buff,9),buff[13],Read_32(buff,14),&buff[19]);
 	return n;
 }
 
-void  reverse_string(char * buff, int len)
+int processEareq(char * buff, _us_int cap)
 {
-	int i = 0;
-	int j = len -1;
-	char temp = 0;
-
-	while(i < j)
+	int re = 0;
+	struct MCB * newm = NULL;
+	_u_char type = buff[PACKTYPE_OFF];
+	
+	//req for the new connection
+	if(type == SYN)
 	{
-		temp = buff[i];
-		buff[i] = buff[j];
-		buff[j] = temp;
+		//create the one node of MCB of type reciver 
+		//check the SYN packet already exits or not
+		newm = getElementByid(Read_32(buff,CONNID_OFF),RECIVER);
 
-		i++;
-		j--;
+		if(newm != NULL)
+		{
+			return 0;
+		}
+		newm = create_new_MCB();
+
+		if(newm == NULL)
+		{
+			return -1;	
+		}
+
+		//now assign with value
+		newm->dest_port =Read_16(buff,SRC_OFF); 
+		newm->src_port = Read_16(buff,DEST_OFF);
+
+		re = assign_value_MCB(newm,"DEFAULT",0,Read_32(buff,CONNID_OFF),RECIVER);
+
+		if(re == -1)
+		{
+			return -1;
+		}
+		newm->ack = buff;
 	}
+	else if((type == SYNACK) && (buff[ACK_OFF] == 1))
+	{
+		//connection ack come
+		newm = getElementByid(Read_32(buff,CONNID_OFF),SENDER);
+
+		if(newm == NULL)
+		{
+			return 0;
+		}
+
+		newm->is_waiting = 0;
+		newm->ack = buff;
+		newm->sub_state = SYNACK;
+	}
+	else
+	{
+		return 0;
+	}
+
+	return MCB_Scheduler(newm);
 
 }
 int handleEarreq(SYS _system)
@@ -1119,24 +1256,25 @@ int handleEarreq(SYS _system)
 		return ret;
 	}
 	
-//	printf("cap of ear : %d\n",cap);
-//	printf("message from the ear after : des : %hd | src : %hd | type : %d | data length: %d | data: %s\n ",
-//	Read_16(buff,0), Read_16(buff,2),buff[4],Read_32(buff,5),&buff[9]);
 
-	if(buff[4] == 1)
+	//printf("req arrived..........................\n");
+	//printf("cap of ear : %d\n",cap);
+	printf("Reqest recivced : des : %hd|\nsrc : %hd|\npacket type : %d|\nconnection id: %d|\nseq no : %d|\nAck : %d|\ndata length: %d|\ndata: %s\n ",
+	Read_16(buff,0), Read_16(buff,2),buff[4],Read_32(buff,5),Read_32(buff,9),buff[13],Read_32(buff,14),&buff[19]);
+
+	//create a function which handle the reqest as per the type of the packet
+
+	ret = processEareq(buff,cap);
+
+	if(ret == -1)
 	{
-		reverse_string(&buff[9],Read_32(buff,5));
-		//msg = create_message(cap,Read_16(buff,2),Read_16(buff,0),2,Read_32(buff,5),&buff[9]);
-		ret = writeIntomouthfile(_system.host.mouth_Info.fd,msg,cap);
-
+		printf("ERROR : while proccessing the ear reqest of connection : %d\n",Read_16(buff,2));
 	}
-	else if(buff[4] == 2)
+	else
 	{
-		if((writeIntoUI(uifd,&buff[9])) < 0)
-		{
-			return -1;
-		}
+		printf("process req done : %d\n",Read_16(buff,DEST_OFF));
 	}
 
+	printLine;
 	return ret;
 }
