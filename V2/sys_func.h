@@ -712,8 +712,10 @@ struct HandShake * create_new_handshake()
 struct MCB * getElementByid(int connection_id,_u_char con_type)
 {
 	struct MCB * temp = NULL;
+	_u_char flag = 0;
 	if(_system.MCB_C.count < 1)
 	{
+		printf("Connection list is empty\n");
 		return temp;
 	}
 
@@ -723,11 +725,16 @@ struct MCB * getElementByid(int connection_id,_u_char con_type)
 	{
 		if((temp->connection_id == connection_id) && (temp->con_type == con_type))
 		{
+			flag = 1;
 			break;
 		}
 		temp = temp->next;
 	}while(temp != _system.MCB_C.head);
 
+	if(flag == 0)
+	{
+		temp = NULL;
+	}
 	return temp;
 }
 
@@ -868,23 +875,47 @@ void setAlram(int * Alram,int tik)
 	*(Alram) = tik;
 }
 
+_u_int generateRandomnumber()
+{
+	static _u_int cnt = 1;
+	_u_int rnd = rand() & 0xFFFF;
+	_u_int id = (cnt << 16) | rnd;
+	cnt++;
+	return id;
+}
+
 int actionFornew(struct MCB * mcb)
 {
-	int re = 0;
+	int re = 0,data_len = 4;
+	_us_int alarm = 500;
+	_u_char pack_type = SYN, seq_no = 0, ack = 0;
 	clear_databuff;
-	mcb->temp = random();
+	mcb->temp = generateRandomnumber();
+	printf("RANDOM NUMBER IS : %d\n",mcb->temp);
 	Read_32(data_buff,0) = mcb->temp;
-		//establish the connection 
-	
+
+	if(mcb->con_type == RECIVER)
+	{
+		printf("RANDOM NUMBER IT RECIVER SIDE : %d\n",Read_32(mcb->ack,DATA_OFF));
+		Read_32(data_buff,0) = Read_32(mcb->ack,DATA_OFF) + 1;
+		Read_32(data_buff,4) = mcb->temp;
+		printf("Random which send back with SYNACK : %d\n",Read_32(data_buff,4));
+		alarm = 1000;
+		pack_type = SYNACK;
+		seq_no = 1;
+		ack = 1;
+		data_len = 8;
+	}
+
 	//printMCB(mcb);
-	re = send_System_message(mcb->src_port,mcb->dest_port,SYN,mcb->connection_id,0,0,4,data_buff);
+	re = send_System_message(mcb->src_port,mcb->dest_port,pack_type,mcb->connection_id,seq_no,ack,data_len,data_buff);
 	
 	if(re == -1)
 	{
 		return re;
 	}
 
-	setAlram(&mcb->alarm,500);
+	setAlram(&mcb->alarm,alarm);
 	mcb->is_waiting = 1;
 	mcb->handshake->count_of_try += 1;
 	mcb->state = CONNECTING;
@@ -892,31 +923,112 @@ int actionFornew(struct MCB * mcb)
 
 	return 0;
 }
-
-int actionFornewRECV(struct MCB * mcb)
+int send_RST_mesg(struct MCB * mcb)
 {
 	int re = 0;
 	clear_databuff;
-	Read_32(data_buff,0) = Read_32(mcb->ack,DATA_OFF) + 1;
-	mcb->temp = random();
-	Read_32(data_buff,4) = mcb->temp;
+	_u_char ack = 0;
 
-	re = send_System_message(mcb->src_port,mcb->dest_port,SYNACK,mcb->connection_id,1,1,8,data_buff);
+	//when server send the ack byte as 0 and when reciver send the RST ack will have 1
+	if(mcb->con_type == RECIVER)
+	{
+		ack = 1;
+	}
+
+	re = send_System_message(mcb->src_port,mcb->dest_port,RST,mcb->connection_id,0,0,ack,data_buff);
+	return 0;
+}
+
+int restAndstart(struct MCB * mcb)
+{
+	int re = 0;
+
+	re = send_RST_mesg(mcb);
 
 	if(re == -1)
 	{
 		return re;
 	}
 
-	setAlram(&mcb->alarm,600);
-	mcb->is_waiting = 1;
-	mcb->handshake->count_of_try += 1;
-	mcb->state = CONNECTING;
-	mcb->sub_state = SYN;
+	mcb->handshake->count_of_try = 0;
+	mcb->state = NEW;
+	mcb->sub_state = 0;
 
 	return 0;
 }
 
+int restAndClose(struct MCB * mcb)
+{
+	int re = 0;
+	re = send_RST_mesg(mcb);
+
+	if(re == -1)
+	{
+		return re;
+	}
+
+	//close connection
+	return closeConnt(mcb->connection_id,mcb->con_type);
+}
+
+int sendACKforconnect(struct MCB * mcb)
+{
+	int re = 0;
+	clear_databuff;
+	Read_32(data_buff,0) = Read_32(mcb->ack,DATA_OFF+4) + 1;
+
+	printf("SYNACKACK send back to the sericer is : %d\n",Read_32(data_buff,0));
+	re = send_System_message(mcb->src_port,mcb->dest_port,SYNACKACK,mcb->connection_id,3,1,4,data_buff);
+
+	if(re == -1)
+	{
+		return re;
+	}
+
+	setAlram(&mcb->alarm,0);
+	mcb->is_waiting = 0;
+	mcb->handshake->is_connect = 1;
+	mcb->state = CONNECT;
+	mcb->sub_state = FMETADATA;
+
+	printf("HANDSHAKE DONE BETWEEN : %d AND %d\n",mcb->src_port,mcb->dest_port);
+	return 0;
+}
+
+int changeStateToconnect(struct MCB * mcb)
+{
+	clear_databuff;
+	_u_int temp = Read_32(mcb->ack,DATA_OFF);
+
+	printf("DIFF : %d\n",((temp)-(mcb->temp)));
+	if((temp-mcb->temp) != 1)
+	{
+		printf("DIFF : %d\n",((temp)-(mcb->temp)));
+		//send RST packet and start process again
+		printf("Random number is incorrect RESTING the connection\n");
+		return (mcb->con_type == SENDER ? restAndstart(mcb) : restAndClose(mcb));
+	}
+
+	//ack come correct
+
+	if(mcb->con_type == SENDER)
+	{
+		printf("SYNACK random number at sender side : %d\n",Read_32(mcb->ack,DATA_OFF+4));
+		return sendACKforconnect(mcb);
+	}
+
+	//RECVER state chnage and wait for the METADATA of the file 
+
+	setAlram(&mcb->alarm,0);
+	mcb->is_waiting = 1;
+	mcb->handshake->is_connect = 1;
+	mcb->state = CONNECT;
+	mcb->sub_state = FMETADATA;
+
+	printf("Handshake done between %d and %d waiting for the FILE METADATA\n",mcb->src_port,mcb->dest_port);
+
+	return 0;
+}
 int MCB_Scheduler(struct MCB * mcb)
 {
 	//printf("Inside the scheduler\n");
@@ -928,14 +1040,7 @@ int MCB_Scheduler(struct MCB * mcb)
 
 	if(mcb->state == NEW)
 	{
-		if(mcb->con_type == SENDER)
-		{
-			return actionFornew(mcb);
-		}
-		else
-		{
-			return actionFornewRECV(mcb);
-		}
+		return actionFornew(mcb);
 	}
 	
 			//alarm is not off and waiting for ack
@@ -949,7 +1054,7 @@ int MCB_Scheduler(struct MCB * mcb)
 	{
 		//check the count of try to connect and if try greater than CNT_OF_TRY then close the connection 
 		printf("count of try : %d\n",mcb->handshake->count_of_try);
-		if((mcb->handshake->count_of_try > CNT_OF_TRY) && (mcb->is_waiting == 1))
+		if((mcb->handshake->count_of_try > CNT_OF_TRY) && (mcb->is_waiting == 1) && (mcb->sub_state == SYN))
 		{
 			re = writeIntoUI(_system.host.ui_info.fd,"Unable to connect...try again");
 			if(re == -1)
@@ -963,21 +1068,24 @@ int MCB_Scheduler(struct MCB * mcb)
 
 		if((mcb->sub_state == SYN) && (mcb->alarm == ALROFF))
 		{
-			if(mcb->con_type == SENDER)
-			{
-				return actionFornew(mcb);
-			}
-			else
-			{
-				return actionFornewRECV(mcb);
-			}
+			return actionFornew(mcb);
 		}
 
 		if((mcb->sub_state == SYNACK) && (mcb->is_waiting == 0))
 		{
-			
+			return changeStateToconnect(mcb);	
 		}
 	}
+	else if(mcb->state == CONNECT)
+	{
+		printf("CONNECTION DONE\n");
+		return 0;
+	}
+	else if(mcb->state == RESET)
+	{
+		return (mcb->con_type == SENDER) ? restAndstart(mcb) : restAndClose(mcb);
+	}
+
 	return 0;
 }
 int send_file(char * file_name,int fd, int id)
@@ -1194,11 +1302,16 @@ int processEareq(char * buff, _us_int cap)
 		//create the one node of MCB of type reciver 
 		//check the SYN packet already exits or not
 		newm = getElementByid(Read_32(buff,CONNID_OFF),RECIVER);
+		printf("New connection req for reciver came\n");
 
-		if(newm != NULL)
+		if((_system.MCB_C.count > 0) && (newm != NULL))
 		{
+			printf("This connection already exist\n");
 			return 0;
 		}
+
+		printf("*****************************************************************************\n");
+		printf("This connection is new and came for first\n");
 		newm = create_new_MCB();
 
 		if(newm == NULL)
@@ -1222,16 +1335,40 @@ int processEareq(char * buff, _us_int cap)
 	{
 		//connection ack come
 		newm = getElementByid(Read_32(buff,CONNID_OFF),SENDER);
-
+		printf("ACK for connection came \n");
 		if(newm == NULL)
 		{
 			return 0;
 		}
 
 		newm->is_waiting = 0;
+		setAlram(&newm->alarm,0);
 		newm->ack = buff;
 		newm->sub_state = SYNACK;
 	}
+	else if((type == SYNACKACK) && (buff[ACK_OFF] == 1))
+	{
+		newm = getElementByid(Read_32(buff,CONNID_OFF),RECIVER);
+
+		if(newm == NULL)
+		{
+			return 0;
+		}
+
+		printf("SYNACKACK : %d\n",Read_32(buff,DATA_OFF));
+		newm->is_waiting = 0;
+		newm->ack = buff;
+		newm->sub_state = SYNACK;
+	}
+	/*
+	else if((type == RST))
+	{
+		newm = (buff[ACK_OFF] == 1) ? getElementByid(Read_32(buff,CONNID_OFF),SENDER) : getElementByid(Read_32(buff,CONNID_OFF),RECIVER);
+
+		newm->is_waiting = 0;
+		newm->ack = buff;
+		newm->state = RESET;
+	}*/
 	else
 	{
 		return 0;

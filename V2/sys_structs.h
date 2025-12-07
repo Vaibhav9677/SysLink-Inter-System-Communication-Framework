@@ -21,14 +21,18 @@
 
 #define NEW 0
 #define CONNECTING 1
-#define CONNECT 0
-#define DISCONNECT 1
+#define CONNECT 2
+#define DISCONNECT 3
+#define RESET 4
 
 #define DEFAULT_TIMMER 0
 #define ALROFF 0
 
 #define SYN 0
 #define SYNACK 1
+#define RST 2
+#define SYNACKACK 3
+#define FMETADATA 4
 
 #define DEST_OFF 0
 #define SRC_OFF 2
